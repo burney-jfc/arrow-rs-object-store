@@ -245,6 +245,23 @@ impl LocalFileSystem {
         })
     }
 
+    /// Create new filesystem storage with windows UNC file
+    /// Do not use if path is not a window UNC path
+    #[cfg(target_os = "windows")]
+    pub fn new_for_windows_unc(mut base: Url) -> Result<Self> {
+        if base.has_host() {
+            base.set_path("/");
+            Ok(Self {
+                config: Arc::new(Config {
+                    root: base,
+                }),
+            automatic_cleanup: false,
+            })
+        } else {
+            return Err(Error::InvalidUrl { url: base }.into());
+        }
+    }
+
     /// Return an absolute filesystem path of the given file location
     pub fn path_to_filesystem(&self, location: &Path) -> Result<PathBuf> {
         if !is_valid_file_path(location) {
