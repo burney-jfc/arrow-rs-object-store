@@ -106,6 +106,9 @@ impl ObjectStoreScheme {
         let strip_bucket = || Some(url.path().strip_prefix('/')?.split_once('/')?.1);
 
         let (scheme, path) = match (url.scheme(), url.host_str()) {
+            #[cfg(target_os = "windows")]
+            ("file", _) => (Self::Local, url.path()),
+            #[cfg(not(target_os = "windows"))]
             ("file", None) => (Self::Local, url.path()),
             ("memory", None) => (Self::Memory, url.path()),
             ("s3" | "s3a", Some(_)) => (Self::AmazonS3, url.path()),
@@ -199,7 +202,17 @@ where
 
     let store = match scheme {
         #[cfg(all(feature = "fs", not(target_arch = "wasm32")))]
-        ObjectStoreScheme::Local => Box::new(LocalFileSystem::new()) as _,
+        ObjectStoreScheme::Local => { 
+            #[cfg(target_os = "windows")]
+            let box_store = if url.has_host() {
+                Box::new(LocalFileSystem::new_for_windows_unc(url.clone())?) as _
+            } else {
+                Box::new(LocalFileSystem::new()) as _
+            };
+            #[cfg(not(target_os = "windows"))]
+            let box_store =Box::new(LocalFileSystem::new()) as _;
+            box_store
+        },
         ObjectStoreScheme::Memory => Box::new(InMemory::new()) as _,
         #[cfg(feature = "aws")]
         ObjectStoreScheme::AmazonS3 => {
